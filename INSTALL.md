@@ -36,11 +36,12 @@ nano .env # Isi API Key Anda di sini
 ```
 
 ## Tips Khusus Termux (Android)
-Agar BrowserTool bisa jalan di Termux, lakukan langkah berikut:
+Agar Zephyr bisa jalan sempurna di Termux, lakukan langkah berikut:
 1. `pkg update && pkg upgrade`
-2. `pkg install tur-repo`
-3. `pkg install chromium`
-4. Jalankan Zephyr seperti biasa: `python main.py`
+2. `pkg install rust clang binutils` (PENTING: Dibutuhkan untuk build library OpenAI/Pydantic)
+3. `pkg install tur-repo`
+4. `pkg install chromium`
+5. Jalankan Zephyr seperti biasa: `python main.py`
 
 ## How to Update
 Untuk memperbarui Zephyr ke versi terbaru:
