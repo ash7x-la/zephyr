@@ -1,7 +1,12 @@
 import os
 import asyncio
-from playwright.async_api import async_playwright
-from playwright_stealth import Stealth
+try:
+    from playwright.async_api import async_playwright
+    from playwright_stealth import Stealth
+    PLAYWRIGHT_AVAILABLE = True
+except ImportError:
+    PLAYWRIGHT_AVAILABLE = False
+
 from core.logger import Logger
 
 class BrowserTool:
@@ -25,6 +30,13 @@ class BrowserTool:
             "html_data": "",
             "error": None
         }
+
+        if not PLAYWRIGHT_AVAILABLE:
+            error_msg = "Playwright/Stealth tidak terinstall. Jalankan 'pip install playwright playwright-stealth' jika di Linux/WSL."
+            results["status"] = "error"
+            results["error"] = error_msg
+            results["message"] = error_msg
+            return results
 
         try:
             async with async_playwright() as p:
