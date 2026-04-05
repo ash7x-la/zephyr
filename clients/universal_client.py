@@ -12,6 +12,9 @@ class UniversalClient(BaseClient):
     def __init__(self):
         self.active_model = Config.DEFAULT_MODEL
         
+        # Log status config (Masked untuk keamanan)
+        self._check_config_status()
+
         # Initialize Shared HTTP Client
         # We use a single persistent client for efficiency and connection pooling
         self.http_client = httpx.AsyncClient(
@@ -200,6 +203,23 @@ class UniversalClient(BaseClient):
                             continue
         except Exception as e:
             yield f"Error Claude Stream: {str(e)}"
+
+    def _check_config_status(self):
+        """Mengecek status loading API Key secara aman."""
+        keys_to_check = {
+            "OpenRouter": Config.OPENROUTER_API_KEY,
+            "Gemini": Config.GEMINI_API_KEY,
+            "DeepSeek-Free": Config.DEEPSEEK_FREE_TOKEN
+        }
+        
+        Logger.info(f"--- KONFIGURASI AKTIF (Source: {Config.SOURCE}) ---")
+        for name, key in keys_to_check.items():
+            if not key or key == "ISI_KEY_DISINI":
+                Logger.warning(f"{name}: BELUM TERISI")
+            else:
+                masked = f"{key[:6]}...{key[-4:]}" if len(key) > 10 else "***"
+                Logger.info(f"{name}: LOADED ({masked})")
+        Logger.info("------------------------------------------")
 
     async def _stream_deepseek_free(self, messages):
         try:
