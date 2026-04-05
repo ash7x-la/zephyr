@@ -20,7 +20,7 @@ __pycache__/
 # Agent Internal State
 sessions/
 results/
-memory/screenshots/
+memory/
 *.log
 
 # Workspace/IDE
