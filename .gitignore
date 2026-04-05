@@ -16,6 +16,7 @@ __pycache__/
 # Environment Variables (SENSITIVE)
 .env
 .env.local
+config.json
 
 # Agent Internal State
 sessions/

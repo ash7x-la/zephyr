@@ -29,7 +29,15 @@ playwright install chromium
 pip install -r requirements.txt
 ```
 
-## 3. Konfigurasi Environment
+## 3. Konfigurasi Environment (Pilih Salah Satu)
+
+### Opsi A: Menggunakan config.json (Rekomendasi Termux)
+```bash
+cp config.json.example config.json
+nano config.json # Isi API Key Anda di sini
+```
+
+### Opsi B: Menggunakan .env (Tradisional)
 ```bash
 cp .env.example .env
 nano .env # Isi API Key Anda di sini
