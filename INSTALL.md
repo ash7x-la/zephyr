@@ -36,6 +36,13 @@ Agar BrowserTool bisa jalan di Termux, lakukan langkah berikut:
 3. `pkg install chromium`
 4. Jalankan Zephyr seperti biasa: `python main.py`
 
+## How to Update
+Untuk memperbarui Zephyr ke versi terbaru:
+```bash
+git pull origin main
+pip install -r requirements.txt
+```
+
 ### B. DeepSeek-Free (Local Proxy)
 Jika menggunakan opsi "Zephyr Free", pastikan Anda menjalankan proxy di background:
 ```bash
