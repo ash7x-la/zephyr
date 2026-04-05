@@ -93,7 +93,14 @@ class UniversalClient(BaseClient):
                 "X-Title": "Zephyr Agent"
             }
             
-            async with self.http_client.stream("POST", f"{base_url}/chat/completions", json=payload, headers=headers) as response:
+            # Bersihkan base_url dari trailing slash untuk mencegah double slash (//)
+            # Double slash bisa memicu redirect yang menghapus header Authorization
+            clean_base = base_url.rstrip("/")
+            full_url = f"{clean_base}/chat/completions"
+            
+            Logger.info(f"[CONFIG] Calling: {full_url}")
+            
+            async with self.http_client.stream("POST", full_url, json=payload, headers=headers) as response:
                 if response.status_code != 200:
                     err_body = await response.aread()
                     msg = err_body.decode()
