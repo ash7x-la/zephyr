@@ -1,11 +1,14 @@
-g4f
-curl_cffi
-nest_asyncio
-textual
-httpx
-openai
-google-generativeai
-anthropic
-python-dotenv
-rich
-playwright
+# Core Networking & API
+httpx>=0.25.0
+openai>=1.12.0
+google-generativeai>=0.3.2
+anthropic>=0.10.0
+python-dotenv>=1.0.0
+
+# User Interface (TUI)
+textual>=0.47.0
+rich>=13.7.0
+
+# Web Browsing & Interaction
+playwright>=1.41.0
+playwright-stealth>=1.0.6
