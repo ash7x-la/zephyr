@@ -1,0 +1,11 @@
+g4f
+curl_cffi
+nest_asyncio
+textual
+httpx
+openai
+google-generativeai
+anthropic
+python-dotenv
+rich
+playwright

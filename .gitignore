@@ -1,0 +1,34 @@
+# Virtual Environment
+env/
+venv/
+.venv/
+bin/
+lib/
+share/
+pyvenv.cfg
+
+# Python Cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Environment Variables (SENSITIVE)
+.env
+.env.local
+
+# Agent Internal State
+sessions/
+results/
+memory/screenshots/
+*.log
+
+# Workspace/IDE
+.vscode/
+.idea/
+.DS_Store
+
+# Large files or build artifacts
+dist/
+build/
+node_modules/
