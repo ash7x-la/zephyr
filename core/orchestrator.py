@@ -142,9 +142,11 @@ ATURAN REAKT (WAJIB):
         else:
             self.history[0] = {"role": "system", "content": system_prompt}
         
-        # Paksa ReAct dengan pengingat di akhir pesan user
-        prompt_with_force = user_request + "\n\n(IMPORTANT: Start your response with <thought> explaining your plan.)"
-        self.history.append({"role": "user", "content": prompt_with_force})
+        if not is_retry:
+            # Paksa ReAct dengan pengingat di akhir pesan user
+            prompt_with_force = user_request + "\n\n(IMPORTANT: Start your response with <thought> explaining your plan.)"
+            self.history.append({"role": "user", "content": prompt_with_force})
+        
         self._trim_history()
 
         max_iterations = 1000 
@@ -276,14 +278,22 @@ ATURAN REAKT (WAJIB):
             Logger.debug(f"History di-trim berdasarkan karakter (Limit {max_chars}).")
 
     def _sanitize_history(self):
-        """Membersihkan history dari pesan kosong atau rusak yang bisa membingungkan LLM."""
+        """Membersihkan history dari pesan kosong, rusak, atau DUPLIKAT."""
         if not self.history:
             return
         
         sanitized = []
+        last_role = None
+        last_content = None
         for msg in self.history:
+            role = msg.get("role")
             content = msg.get("content")
             if isinstance(content, str) and content.strip():
+                # Hindari pesan berturut-turut yang identik dari role yang sama (Duplikasi)
+                if role == last_role and content == last_content:
+                    continue
                 sanitized.append(msg)
+                last_role = role
+                last_content = content
 
         self.history = sanitized

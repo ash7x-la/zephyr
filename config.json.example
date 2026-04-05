@@ -1,8 +1,20 @@
 {
-    "OPENROUTER_API_KEY": "ISI_KEY_DISINI",
-    "GEMINI_API_KEY": "ISI_KEY_DISINI",
-    "CLAUDE_API_KEY": "ISI_KEY_DISINI",
-    "DEEPSEEK_FREE_TOKEN": "ISI_KEY_DISINI",
+    "OPENROUTER_API_KEY": "sk-or-v1-YOUR_KEY_HERE",
+    "GEMINI_API_KEY": "YOUR_GEMINI_KEY_HERE",
+    "CLAUDE_API_KEY": "YOUR_CLAUDE_KEY_HERE",
+    "DEEPSEEK_FREE_TOKEN": "YOUR_TOKEN_HERE",
     "DEEPSEEK_FREE_URL": "http://127.0.0.1:8000/v1",
-    "DEFAULT_MODEL": "qwen/qwen3.6-plus:free"
+    "DEFAULT_MODEL": "qwen/qwen3.6-plus:free",
+    "MODEL_MAPPING": {
+        "1": "qwen/qwen3.6-plus:free",
+        "2": "google/gemini-2.0-flash-001",
+        "3": "anthropic/claude-3.5-sonnet",
+        "4": "deepseek-free/deepseek-chat"
+    },
+    "MODEL_LABELS": {
+        "1": "Qwen 3.6 Plus (OpenRouter)",
+        "2": "Gemini SDK (Official API)",
+        "3": "Claude Direct (Anthropic)",
+        "4": "Zephyr Free (Local Proxy)"
+    }
 }

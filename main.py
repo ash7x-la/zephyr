@@ -65,13 +65,15 @@ class ReasoningBox(Static):
         self.visible = False
 
     def watch_content(self, content: str):
-        if content:
-            self.visible = True
-            clean = content.replace("<thought>", "").replace("</thought>", "").strip()
+        content_stripped = content.strip()
+        if content_stripped:
+            self.set_class(True, "-visible")
+            clean = content_stripped.replace("<thought>", "").replace("</thought>", "").strip()
             self.update(f"[bold #fab387]ANALISIS ZEPHYR:[/bold #fab387]\n[italic #9399b2]{clean}[/italic #9399b2]")
         else:
-            self.visible = False
+            self.set_class(False, "-visible")
             self.update("")
+            self.display = False # Paksa sembunyi total
 
 class DeepSeekApp(App):
     current_model = reactive(Config.DEFAULT_MODEL)
@@ -115,14 +117,14 @@ class DeepSeekApp(App):
     }
     ChatArea {
         height: 1fr;
-        padding: 1 2;
+        padding: 0 1 3 1;
         scrollbar-gutter: stable;
     }
     ChatMessage {
         width: 100%;
         height: auto;
-        margin: 1 0;
-        padding: 1 2;
+        margin: 0;
+        padding: 0 2;
         border-left: solid #313244;
         background: #181825;
     }
@@ -130,11 +132,15 @@ class DeepSeekApp(App):
         background: #1e1e2e;
         color: #cdd6f4;
         border-left: solid #89b4fa;
+        margin-top: 1;
+        padding: 1 2;
     }
     ChatMessage.-ai {
-        background: #11111b;
+        background: transparent;
         color: #bac2de;
-        border-left: solid #a6e3a1;
+        border: none;
+        padding: 0 2;
+        margin-top: 1;
     }
     ChatMessage.-system {
         background: transparent;
@@ -155,16 +161,19 @@ class DeepSeekApp(App):
         border-top: solid #1e1e2e;
     }
     .reasoning-box {
+        display: none;
         width: 100%;
         height: auto;
-        min-height: 2;
-        max-height: 20;
-        margin: 0 0 1 0;
-        padding: 1 2;
-        border-right: dashed #fab387;
-        border-left: dashed #fab387;
-        background: #1e1e2e;
+        margin: 0;
+        padding: 0 2;
+        background: transparent;
         color: #9399b2;
+        border: none;
+    }
+    .reasoning-box.-visible {
+        display: block;
+        padding: 1 2;
+        margin-top: 1;
     }
     """
     
@@ -198,33 +207,52 @@ class DeepSeekApp(App):
         Logger.set_info_callback(self.update_info)
         
         chat = self.query_one("#chat-area", ChatArea)
-        welcome_txt = f"""[bold #89b4fa]ZEPHYR HYBRID[/bold #89b4fa]
-Provider Selection:
-
-1. [bold #a6e3a1]Gemini CLI[/bold #a6e3a1] (`gemini` lokal)
-2. [bold #f9e2af]Gemini SDK[/bold #f9e2af] (Official API)
-3. [bold #89b4fa]OpenRouter Hub[/bold #89b4fa] (Qwen/DeepSeek/GPT-4)
-4. [bold #94e2d5]Claude Direct[/bold #94e2d5] (Anthropic API)
-5. [bold #cba6f7]Zephyr Free[/bold #cba6f7] (Local Reverse Proxy)
-
-[italic #9399b2]Ketik nomor atau tekan ENTER untuk Default ({Config.DEFAULT_MODEL})[/italic #9399b2]"""
-        chat.mount(ChatMessage(render(welcome_txt), "system"))
+        
+        # Cek apakah user punya MODEL_MAPPING di config.json
+        if Config.MODEL_MAPPING:
+            # User sudah konfigurasi provider — tampilkan menu
+            lines = ["[bold #89b4fa]ZEPHYR HYBRID[/bold #89b4fa]", "Provider Selection:", ""]
+            for key in sorted(Config.MODEL_MAPPING.keys()):
+                label = Config.MODEL_LABELS.get(key, Config.MODEL_MAPPING[key])
+                model = Config.MODEL_MAPPING[key]
+                color = ["#a6e3a1", "#f9e2af", "#89b4fa", "#94e2d5", "#cba6f7"][int(key)-1 if key.isdigit() and 1<=int(key)<=5 else 0]
+                lines.append(f"{key}. [bold {color}]{label}[/bold {color}] ({model})")
+            
+            if Config.DEFAULT_MODEL:
+                lines.append("")
+                lines.append(f"[italic #9399b2]Ketik nomor atau tekan ENTER untuk Default ({Config.DEFAULT_MODEL})[/italic #9399b2]")
+            else:
+                lines.append("")
+                lines.append("[italic #9399b2]Ketik nomor untuk memilih provider.[/italic #9399b2]")
+            
+            welcome_txt = "\n".join(lines)
+            chat.mount(ChatMessage(render(welcome_txt), "system"))
+        elif Config.DEFAULT_MODEL:
+            # Tidak ada menu, tapi ada DEFAULT_MODEL — langsung konek
+            self._init_session(Config.DEFAULT_MODEL)
+        else:
+            # Tidak ada config sama sekali
+            chat.mount(ChatMessage(render("[bold #f38ba8]ERROR: Tidak ada model yang dikonfigurasi.[/bold #f38ba8]\nSilakan isi DEFAULT_MODEL dan/atau MODEL_MAPPING di config.json Anda."), "system"))
 
     def _finalize_setup(self, choice):
-        mapping = {
-            "1": "google/gemini-cli-proxy",
-            "2": "google/gemini-2.0-flash-001",
-            "3": "qwen/qwen3.6-plus:free",
-            "4": "anthropic/claude-3.5-sonnet",
-            "5": "deepseek-free/deepseek-chat"
-        }
+        mapping = Config.MODEL_MAPPING
         model = mapping.get(choice, Config.DEFAULT_MODEL)
-        self._init_session(model)
+        if model:
+            self._init_session(model)
+        else:
+            self.add_ai_message("[ERROR] Nomor tersebut tidak dikonfigurasi dan DEFAULT_MODEL kosong.")
 
     def _finalize_default(self):
-        self._init_session(Config.DEFAULT_MODEL)
+        if Config.DEFAULT_MODEL:
+            self._init_session(Config.DEFAULT_MODEL)
+        else:
+            self.add_ai_message("[ERROR] DEFAULT_MODEL tidak diisi di config.json.")
 
     def _init_session(self, model):
+        if not model:
+            self.add_ai_message("[ERROR] Model tidak ditemukan. Isi config.json Anda.")
+            return
+            
         self.current_model = model
         try:
             self.client = UniversalClient()
@@ -265,8 +293,9 @@ Provider Selection:
         chat = self.query_one("#chat-area", ChatArea)
         
         # UI Safety Net: Bersihkan tag sisa (thought/action) yang mungkin lolos
-        clean_text = re.sub(r"<?thought>?(.*?)</?thought>?", "", text, flags=re.DOTALL | re.IGNORECASE).strip()
-        clean_text = re.sub(r"<?action>?(.*?)</?action>?", "", clean_text, flags=re.DOTALL | re.IGNORECASE).strip()
+        # Mendukung multiline (?s), case-insensitive (?i), dan unclosed tags (|$ atau .*?)
+        clean_text = re.sub(r"(?si)<thought>.*?(?:</thought>|$)", "", text).strip()
+        clean_text = re.sub(r"(?si)<action>.*?(?:</action>|$)", "", clean_text).strip()
         
         if clean_text:
             chat.mount(ChatMessage(Text(clean_text), "ai"))
@@ -306,18 +335,17 @@ Provider Selection:
     @work
     async def run_orchestrator(self, user_text: str):
         chat = self.query_one("#chat-area", ChatArea)
-        reasoning = ReasoningBox()
-        chat.mount(reasoning)
-        chat.scroll_end()
-        
-        # Set initial content
-        reasoning.content = "Sedang menganalisis permintaan..."
+        reasoning = None
         
         try:
             async for event in self.orchestrator.run(user_text):
                 ev_type = event.get("type")
                 
                 if ev_type == "thought":
+                    if reasoning is None:
+                        reasoning = ReasoningBox()
+                        chat.mount(reasoning)
+                        chat.scroll_end()
                     reasoning.content = event.get("content", "")
                 
                 elif ev_type == "status":
@@ -337,17 +365,13 @@ Provider Selection:
                     self.update_info(f"[ERROR] {event.get('content')}")
                 
                 elif ev_type == "final_answer":
-                    # Tetap simpan reasoning sampai ada input baru jika mau,
-                    # atau sembunyikan setelah ada jeda kecil.
-                    # Tapi untuk otonomi, lebih baik disembunyikan saat jawaban muncul.
-                    reasoning.content = "" # Sembunyikan
+                    # Biarkan reasoning.content tetap berisi agar terlihat di history turn ini
                     self.add_ai_message(event.get("content", ""))
                     
         except Exception as e:
             self.add_ai_message(f"[System] Crash: {str(e)}")
         finally:
             self.is_computing = False
-            reasoning.content = ""
             self.update_status()
 
 if __name__ == "__main__":

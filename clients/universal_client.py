@@ -98,14 +98,16 @@ class UniversalClient(BaseClient):
             clean_base = base_url.rstrip("/")
             full_url = f"{clean_base}/chat/completions"
             
-            Logger.info(f"[CONFIG] Calling: {full_url}")
+            # Logger.info mungkin tidak muncul di TUI, paksa print ke terminal untuk debug
+            print(f"\n[DEBUG] Full URL: {full_url}")
+            print(f"[DEBUG] Auth Header Snippet: {headers['Authorization'][:15]}...{headers['Authorization'][-5:]}")
             
             async with self.http_client.stream("POST", full_url, json=payload, headers=headers) as response:
                 if response.status_code != 200:
                     err_body = await response.aread()
                     msg = err_body.decode()
                     if response.status_code == 401:
-                        msg += " (TIPS: Cek API Key di config.json atau .env Anda)"
+                        msg += " (TIPS: Key Anda tidak dikenali. Cek saldo atau limit key gratis.)"
                     yield f"Error API ({response.status_code}): {msg}"
                     return
                 
