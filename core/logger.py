@@ -22,6 +22,14 @@ class Logger:
             Logger._info_cb(msg)
         else:
             print(f"[INFO] {msg}")
+
+    @staticmethod
+    def warning(msg):
+        """Log peringatan, muncul di TUI."""
+        if Logger._info_cb:
+            Logger._info_cb(f"[WARNING] {msg}")
+        else:
+            print(f"[WARNING] {msg}")
             
     @staticmethod
     def error(msg):
