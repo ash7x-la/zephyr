@@ -43,6 +43,19 @@ Agar Zephyr bisa jalan sempurna di Termux, lakukan langkah berikut:
 4. `pkg install chromium`
 5. Jalankan Zephyr seperti biasa: `python main.py`
 
+## Troubleshooting Termux (FAQ)
+
+### 1. Error `Failed to fetch` / `InRelease isn't valid`
+Ini berarti mirror Termux yang Anda gunakan sedang down atau bermasalah.
+**Solusi:**
+- Jalankan perintah: `termux-change-repo`
+- Pilih `Main Repository` -> `OK`.
+- Pilih mirror lain (misal: `Mirror by Grimler` atau `Mirror by AWA`) -> `OK`.
+- Ulangi: `pkg update && pkg upgrade`
+
+### 2. Error `Failed to build jiter` / `Rust not found`
+Pastikan sudah install build-tools: `pkg install rust clang binutils`.
+
 ## How to Update
 Untuk memperbarui Zephyr ke versi terbaru:
 ```bash
