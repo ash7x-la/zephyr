@@ -4,9 +4,6 @@ from asyncio import subprocess as async_sub
 import json
 import re
 import httpx
-from openai import AsyncOpenAI
-import google.generativeai as genai
-import anthropic
 from clients.base_client import BaseClient
 from core.config import Config
 from core.logger import Logger
@@ -15,34 +12,12 @@ class UniversalClient(BaseClient):
     def __init__(self):
         self.active_model = Config.DEFAULT_MODEL
         
-        # Initialize OpenRouter (OpenAI Compatible)
-        self.openrouter_client = None
-        if Config.OPENROUTER_API_KEY:
-            self.openrouter_client = AsyncOpenAI(
-                base_url="https://openrouter.ai/api/v1",
-                api_key=Config.OPENROUTER_API_KEY,
-            )
-        
-        # Initialize Gemini
-        self.gemini_handler = None
-        if Config.GEMINI_API_KEY:
-            genai.configure(api_key=Config.GEMINI_API_KEY)
-            self.gemini_handler = genai.GenerativeModel('gemini-2.0-flash')
-            
-        # Initialize Anthropic (Optional direct)
-        self.anthropic_client = None
-        if Config.CLAUDE_API_KEY:
-            self.anthropic_client = anthropic.AsyncAnthropic(api_key=Config.CLAUDE_API_KEY)
-
-        # Initialize DeepSeek Free (Local Proxy)
-        self.deepseek_free_client = None
-        if Config.DEEPSEEK_FREE_TOKEN:
-            # We use httpx directly for deepseek-free to handle proxy response bugs
-            self.free_http_client = httpx.AsyncClient(
-                base_url=Config.DEEPSEEK_FREE_URL,
-                timeout=httpx.Timeout(240.0, connect=15.0),
-                headers={"Authorization": f"Bearer {Config.DEEPSEEK_FREE_TOKEN}"}
-            )
+        # Initialize Shared HTTP Client
+        # We use a single persistent client for efficiency and connection pooling
+        self.http_client = httpx.AsyncClient(
+            timeout=httpx.Timeout(300.0, connect=20.0),
+            headers={"User-Agent": "Zephyr-Agent-Assistant/1.0"}
+        )
 
 
     async def chat(self, messages):
@@ -60,16 +35,16 @@ class UniversalClient(BaseClient):
             # Subprocess usually doesn't stream well without TTY, yield once
             yield await self._chat_gemini_cli(messages)
         elif "gemini" in model:
-            async for chunk in self._stream_gemini(messages):
+            async for chunk in self._stream_gemini_http(messages):
                 yield chunk
-        elif "claude" in model and self.anthropic_client:
-            async for chunk in self._stream_claude(messages):
+        elif "claude" in model:
+            async for chunk in self._stream_claude_http(messages):
                 yield chunk
         elif "deepseek-free" in model:
             async for chunk in self._stream_deepseek_free(messages):
                 yield chunk
         else:
-            async for chunk in self._stream_openrouter(messages):
+            async for chunk in self._stream_openai_compatible(messages, "https://openrouter.ai/api/v1", Config.OPENROUTER_API_KEY):
                 yield chunk
 
     async def _chat_gemini_cli(self, messages):
@@ -93,67 +68,136 @@ class UniversalClient(BaseClient):
         except Exception as e:
             return f"Error Gemini CLI Proxy: {str(e)}"
 
-    async def _stream_openrouter(self, messages):
+    async def _stream_openai_compatible(self, messages, base_url, api_key):
+        """Implementasi OpenAI SDK secara manual menggunakan raw HTTP streams."""
         try:
-            if not self.openrouter_client:
-                yield "Error: OPENROUTER_API_KEY tidak ditemukan."
+            if not api_key:
+                yield "Error: API_KEY tidak ditemukan untuk model ini."
                 return
                 
-            stream = await self.openrouter_client.chat.completions.create(
-                model=self.active_model,
-                messages=messages,
-                temperature=0.3,
-                stream=True
-            )
-            sent_thought = False
-            async for chunk in stream:
-                delta = chunk.choices[0].delta
-                if hasattr(delta, "reasoning_content") and delta.reasoning_content:
-                    if not sent_thought:
-                        yield "<thought>"
-                        sent_thought = True
-                    yield delta.reasoning_content
-                elif delta.content:
-                    if sent_thought:
-                        yield "</thought>"
-                        sent_thought = False
-                    yield delta.content
-            if sent_thought:
-                yield "</thought>"
+            payload = {
+                "model": self.active_model,
+                "messages": messages,
+                "temperature": 0.3,
+                "stream": True
+            }
+            
+            headers = {
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+                "HTTP-Referer": "https://github.com/ash7x-la/zephyr",
+                "X-Title": "Zephyr Agent"
+            }
+            
+            async with self.http_client.stream("POST", f"{base_url}/chat/completions", json=payload, headers=headers) as response:
+                if response.status_code != 200:
+                    err_body = await response.aread()
+                    yield f"Error API ({response.status_code}): {err_body.decode()}"
+                    return
+                
+                sent_thought = False
+                async for line in response.aiter_lines():
+                    if line.startswith("data: "):
+                        data_str = line[6:]
+                        if data_str == "[DONE]":
+                            break
+                        try:
+                            data = json.loads(data_str)
+                            delta = data["choices"][0].get("delta", {})
+                            
+                            # Support R1-style reasoning_content
+                            if delta.get("reasoning_content"):
+                                if not sent_thought:
+                                    yield "<thought>"
+                                    sent_thought = True
+                                yield delta["reasoning_content"]
+                            elif delta.get("content"):
+                                if sent_thought:
+                                    yield "</thought>"
+                                    sent_thought = False
+                                yield delta["content"]
+                        except:
+                            continue
+                
+                if sent_thought:
+                    yield "</thought>"
         except Exception as e:
-            yield f"Error OpenRouter Stream: {str(e)}"
+            yield f"Error OpenAI Stream: {str(e)}"
 
-    async def _stream_gemini(self, messages):
+    async def _stream_gemini_http(self, messages):
+        """Implementasi Gemini API secara manual tanpa Google SDK."""
         try:
-            if not self.gemini_handler:
+            if not Config.GEMINI_API_KEY:
                 yield "Error: GEMINI_API_KEY tidak ditemukan."
                 return
             
-            history = []
-            for m in messages[:-1]:
+            # Convert OpenAI format to Gemini format
+            contents = []
+            for m in messages:
                 role = "user" if m["role"] in ["user", "system"] else "model"
-                history.append({"role": role, "parts": [m["content"]]})
+                contents.append({"role": role, "parts": [{"text": m["content"]}]})
             
-            chat = self.gemini_handler.start_chat(history=history)
-            response = await chat.send_message_async(messages[-1]["content"], stream=True)
-            async for chunk in response:
-                yield chunk.text
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.active_model}:streamGenerateContent?alt=sse&key={Config.GEMINI_API_KEY}"
+            payload = {"contents": contents}
+            
+            async with self.http_client.stream("POST", url, json=payload) as response:
+                if response.status_code != 200:
+                    err_body = await response.aread()
+                    yield f"Error Gemini ({response.status_code}): {err_body.decode()}"
+                    return
+
+                async for line in response.aiter_lines():
+                    if line.startswith("data: "):
+                        try:
+                            data = json.loads(line[6:])
+                            text = data["candidates"][0]["content"]["parts"][0].get("text", "")
+                            if text:
+                                yield text
+                        except:
+                            continue
         except Exception as e:
             yield f"Error Gemini Stream: {str(e)}"
 
-    async def _stream_claude(self, messages):
+    async def _stream_claude_http(self, messages):
+        """Implementasi Anthropic API secara manual tanpa SDK."""
         try:
+            if not Config.CLAUDE_API_KEY:
+                yield "Error: CLAUDE_API_KEY tidak ditemukan."
+                return
+            
             system_msg = next((m["content"] for m in messages if m["role"] == "system"), "")
             other_msgs = [m for m in messages if m["role"] != "system"]
             
-            async with self.anthropic_client.messages.stream(
-                model=self.active_model,
-                max_tokens=4096,
-                system=system_msg,
-                messages=other_msgs
-            ) as stream:
-                async for text in stream.text_stream:
-                    yield text
+            payload = {
+                "model": self.active_model,
+                "max_tokens": 4096,
+                "messages": other_msgs,
+                "system": system_msg,
+                "stream": True
+            }
+            
+            headers = {
+                "x-api-key": Config.CLAUDE_API_KEY,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json"
+            }
+            
+            url = "https://api.anthropic.com/v1/messages"
+            
+            async with self.http_client.stream("POST", url, json=payload, headers=headers) as response:
+                if response.status_code != 200:
+                    err_body = await response.aread()
+                    yield f"Error Claude ({response.status_code}): {err_body.decode()}"
+                    return
+
+                async for line in response.aiter_lines():
+                    if line.startswith("data: "):
+                        try:
+                            data = json.loads(line[6:])
+                            if data["type"] == "content_block_delta":
+                                yield data["delta"]["text"]
+                        except:
+                            continue
         except Exception as e:
             yield f"Error Claude Stream: {str(e)}"
 
@@ -165,7 +209,9 @@ class UniversalClient(BaseClient):
                 "stream": True
             }
             
-            async with self.free_http_client.stream("POST", "/chat/completions", json=payload) as response:
+            # Use shared client for deepseek-free
+            headers = {"Authorization": f"Bearer {Config.DEEPSEEK_FREE_TOKEN}"}
+            async with self.http_client.stream("POST", f"{Config.DEEPSEEK_FREE_URL}/chat/completions", json=payload, headers=headers) as response:
                 if response.status_code != 200:
                     yield f"Error DeepSeek-Free Stream ({response.status_code})"
                     return
