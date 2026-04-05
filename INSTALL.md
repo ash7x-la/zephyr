@@ -16,11 +16,17 @@ source env/bin/activate
 ```
 
 ## 2. Instalasi Dependensi
+Pilih versi sesuai perangkat Anda:
+
+### A. Versi PC / WSL (Full Experience)
+```bash
+pip install -r requirements-full.txt
+playwright install chromium
+```
+
+### B. Versi Termux (Core Lite) - Tanpa BrowserTool
 ```bash
 pip install -r requirements.txt
-
-# Setup Browser (Untuk fitur Webbrowsing)
-playwright install chromium
 ```
 
 ## 3. Konfigurasi Environment
