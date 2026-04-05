@@ -16,10 +16,11 @@ class UniversalClient(BaseClient):
         self._check_config_status()
 
         # Initialize Shared HTTP Client
-        # We use a single persistent client for efficiency and connection pooling
+        # trust_env=False prevents picking up unwanted system proxies
         self.http_client = httpx.AsyncClient(
             timeout=httpx.Timeout(300.0, connect=20.0),
-            headers={"User-Agent": "Zephyr-Agent-Assistant/1.0"}
+            headers={"User-Agent": "Zephyr-Agent-Assistant/1.0"},
+            trust_env=False
         )
 
 
@@ -95,7 +96,10 @@ class UniversalClient(BaseClient):
             async with self.http_client.stream("POST", f"{base_url}/chat/completions", json=payload, headers=headers) as response:
                 if response.status_code != 200:
                     err_body = await response.aread()
-                    yield f"Error API ({response.status_code}): {err_body.decode()}"
+                    msg = err_body.decode()
+                    if response.status_code == 401:
+                        msg += " (TIPS: Cek API Key di config.json atau .env Anda)"
+                    yield f"Error API ({response.status_code}): {msg}"
                     return
                 
                 sent_thought = False
@@ -212,14 +216,13 @@ class UniversalClient(BaseClient):
             "DeepSeek-Free": Config.DEEPSEEK_FREE_TOKEN
         }
         
-        Logger.info(f"--- KONFIGURASI AKTIF (Source: {Config.SOURCE}) ---")
+        Logger.info(f"[CONFIG] SOURCE: {Config.SOURCE}")
         for name, key in keys_to_check.items():
             if not key or key == "ISI_KEY_DISINI":
-                Logger.warning(f"{name}: BELUM TERISI")
+                Logger.info(f"[CONFIG] {name}: BELUM TERISI")
             else:
                 masked = f"{key[:6]}...{key[-4:]}" if len(key) > 10 else "***"
-                Logger.info(f"{name}: LOADED ({masked})")
-        Logger.info("------------------------------------------")
+                Logger.info(f"[CONFIG] {name}: LOADED ({masked})")
 
     async def _stream_deepseek_free(self, messages):
         try:

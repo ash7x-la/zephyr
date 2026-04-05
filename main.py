@@ -243,11 +243,15 @@ Provider Selection:
             self.add_ai_message(f"Fatal Error: {e}")
 
     def update_info(self, msg: str):
-        # Redirect progress to ActivityMonitor, but mount ERRORS to chat
+        # Redirect progress to ActivityMonitor, but mount ERRORS and CONFIG to chat
         try:
-            if msg.startswith("[ERROR]"):
+            if msg.startswith("[ERROR]") or msg.startswith("[CONFIG]"):
                 chat = self.query_one("#chat-area", ChatArea)
-                txt = Text.assemble(Text.from_markup("[bold #f38ba8][ERROR][/bold #f38ba8] "), Text(msg[7:].strip()))
+                prefix = "[ERROR] " if msg.startswith("[ERROR]") else "[CONFIG] "
+                color = "#f38ba8" if msg.startswith("[ERROR]") else "#fab387"
+                
+                content = msg[len(prefix):].strip()
+                txt = Text.assemble(Text.from_markup(f"[bold {color}]{prefix}[/bold {color}] "), Text(content))
                 chat.mount(ChatMessage(txt, "system"))
                 chat.scroll_end(animate=False)
             else:
